@@ -1,0 +1,12 @@
+{
+  "appId": "com.elhakim45.mizanamil",
+  "appName": "Mizan Amil",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "CapacitorHttp": { "enabled": true },
+    "SplashScreen": { "backgroundColor": "#2B1C78", "launchShowDuration": 800 }
+  }
+}

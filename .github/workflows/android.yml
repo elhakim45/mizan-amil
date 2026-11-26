@@ -1,0 +1,67 @@
+name: Build APK Android
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['README.md']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Pasang Capacitor
+        run: npm install --no-audit --no-fund
+
+      - name: Buat proyek Android
+        run: npx cap add android
+
+      - name: Ikon & splash dari logo HES
+        continue-on-error: true
+        run: >
+          npx capacitor-assets generate --android
+          --iconBackgroundColor '#FFFFFF' --iconBackgroundColorDark '#FFFFFF'
+          --splashBackgroundColor '#2B1C78' --splashBackgroundColorDark '#2B1C78'
+
+      - name: Salin web app ke Android
+        run: npx cap sync android
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Beri nama berkas
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk "MizanAmil-v1.0.${{ github.run_number }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MizanAmil-apk
+          path: MizanAmil-*.apk
+
+      - name: Terbitkan rilis
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Mizan Amil v1.0.${{ github.run_number }}
+          files: MizanAmil-*.apk
+          body: |
+            APK Android Mizan Amil — media pembelajaran Hukum Zakat, Prodi Hukum Ekonomi Syariah FAI UMS.
+            Unduh berkas .apk di bawah, buka di ponsel Android, lalu izinkan "Instal dari sumber tidak dikenal".
