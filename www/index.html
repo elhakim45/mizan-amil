@@ -559,20 +559,79 @@ function kwBody(t){const c=S.cfg,d=D(t.tgl);return`<div class="kw"><div class="h
 <div style="margin:14px 0 4px">${t.nominal?`<div class="amt">${rp(t.nominal)}</div><div class="h"><i>Terbilang: ${esc(terbilang(t.nominal).replace(/^./,m=>m.toUpperCase()))}</i></div>`:''}${t.beras?`<div class="amt">${esc(nf(t.beras))} kg beras</div>`:''}</div>
 <p class="ar">${DOA}</p><p class="h" style="text-align:center">${esc(DOAT)}</p>
 <div style="display:flex;justify-content:flex-end;margin-top:18px;text-align:center"><div>Amil penerima<br><br><br><b>${esc(t.amil||'(…………………)')}</b></div></div></div>`}
-function showKw(t){if(!t)return;$('#mbox').innerHTML=kwBody(t)+`<div class="tools" style="margin-top:14px"><button class="pri" id="k-dl">Unduh kwitansi</button><button id="k-wa">Salin teks untuk WhatsApp</button><button class="ghost" id="k-x">Tutup</button></div>`;$('#modal').hidden=false;
- $('#k-x').onclick=closeM;$('#k-dl').onclick=()=>saveFile(t.no+'.html',standaloneKw(t),'text/html');
+function showKw(t){if(!t)return;$('#mbox').innerHTML=kwBody(t)+`<div class="tools" style="margin-top:14px"><button class="pri" id="k-dl">${isNative()?'Simpan / bagikan PDF':'Unduh PDF'}</button><button id="k-wa">Salin teks untuk WhatsApp</button><button class="ghost" id="k-x">Tutup</button></div>`;$('#modal').hidden=false;
+ $('#k-x').onclick=closeM;$('#k-dl').onclick=async e=>{const b=e.currentTarget,o=b.textContent;b.disabled=true;b.textContent='Menyiapkan PDF…';try{await saveFile(t.no+'.pdf',await kwPdf(t),'application/pdf')}catch(err){toast('Gagal membuat PDF: '+((err&&err.message)||err),6000)}b.disabled=false;b.textContent=o};
  $('#k-wa').onclick=()=>copy(`*${S.cfg.lembaga}*\nKwitansi ${t.no}\nTanggal: ${tgl(D(t.tgl))}\nDiterima dari: ${t.muzaki}\nUntuk: ${t.jenis}\nJumlah: ${t.nominal?rp(t.nominal):''}${t.beras?' '+nf(t.beras)+' kg beras':''}\n\n${DOA}\n${DOAT}\n\nJazakumullah khairan.`)}
-function standaloneKw(t){return`<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>${esc(t.no)}</title><style>body{font:15px/1.5 system-ui,sans-serif;max-width:640px;margin:24px auto;color:#1A1538}.kw{border:2px dashed #2B1C78;border-radius:14px;padding:20px}.hd{display:flex;justify-content:space-between;border-bottom:3px solid #F2C21B;padding-bottom:10px;margin-bottom:12px}.h{color:#5E5A78;font-size:13px}table{width:100%;border-collapse:collapse}td{padding:6px;border-bottom:1px solid #E4E0F3;vertical-align:top}.amt{font-size:26px;font-weight:800;color:#2B1C78}.ar{font-family:Amiri,'Traditional Arabic',serif;font-size:22px;direction:rtl;text-align:center}@media print{body{margin:0}}</style></head><body>${kwBody(t)}<p class="h" style="text-align:center">Cetak dengan Ctrl/Cmd + P</p></body></html>`}
+/* PDF kwitansi: digambar di canvas agar huruf Arab tampil benar (font dibundel), lalu dibungkus menjadi PDF A5. */
+function wrapLines(x,text,maxW){const out=[];String(text).split('\n').forEach(par=>{let line='';par.split(/\s+/).filter(Boolean).forEach(w=>{const t=line?line+' '+w:w;if(line&&x.measureText(t).width>maxW){out.push(line);line=w}else line=t});out.push(line)});return out}
+function roundRect(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath()}
+function loadImg(src){return new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>r(null);i.src=src})}
+async function kwPdf(t){
+ const c=S.cfg,d=D(t.tgl),SC=2,W=620,H=877,M=26,P=24,x0=M+P,x1=W-M-P,FS='"Plus Jakarta Sans",system-ui,sans-serif';
+ try{await Promise.all([document.fonts.load('400 14px "Plus Jakarta Sans"'),document.fonts.load('700 14px "Plus Jakarta Sans"'),document.fonts.load('800 14px "Plus Jakarta Sans"'),document.fonts.load('24px Amiri',DOA)])}catch(e){}
+ const logo=await loadImg('logo-hes.png');
+ const cv=document.createElement('canvas');cv.width=W*SC;cv.height=H*SC;const x=cv.getContext('2d');x.scale(SC,SC);
+ x.fillStyle='#fff';x.fillRect(0,0,W,H);x.textBaseline='alphabetic';x.textAlign='left';x.direction='ltr';
+ let y=M+P+6;
+ if(logo)x.drawImage(logo,x0,y-4,46,46);
+ const hx=x0+(logo?58:0),hw=x1-hx-120;let ly=y+12;
+ x.fillStyle='#1A1538';x.font='800 16px '+FS;wrapLines(x,c.lembaga||'',hw).forEach(l=>{x.fillText(l,hx,ly);ly+=20});
+ x.fillStyle='#5E5A78';x.font='400 10.5px '+FS;wrapLines(x,c.alamat||'',hw).forEach(l=>{x.fillText(l,hx,ly);ly+=14});
+ x.textAlign='right';x.fillStyle='#1A1538';x.font='800 15px '+FS;x.fillText('KWITANSI',x1,y+12);x.fillStyle='#5E5A78';x.font='400 10.5px '+FS;x.fillText(t.no||'',x1,y+28);x.textAlign='left';
+ y=Math.max(ly,y+46)+4;x.fillStyle='#F2C21B';x.fillRect(x0,y,x1-x0,2.5);y+=12;
+ const rows=[['Tanggal',[[tgl(d)+(hij(d)?' / '+hij(d):''),0]]],['Diterima dari',[[t.muzaki||'-',1]].concat(t.alamat?[[t.alamat,0]]:[],t.hp?[[t.hp,0]]:[])],['Untuk',[[(t.jenis||'')+(t.ket?' — '+t.ket:''),0]]],['Metode',[[t.metode||'-',0]]]];
+ const vx=x0+108,vw=x1-vx;
+ rows.forEach(([lab,vals])=>{const lines=[];vals.forEach(([tx,b])=>{x.font=(b?'700 ':'400 ')+'12.5px '+FS;wrapLines(x,tx,vw).forEach(l=>lines.push([l,b]))});
+  x.fillStyle='#5E5A78';x.font='400 12.5px '+FS;x.fillText(lab,x0,y+19);
+  x.fillStyle='#1A1538';lines.forEach(([l,b],i)=>{x.font=(b?'700 ':'400 ')+'12.5px '+FS;x.fillText(l,vx,y+19+i*17)});
+  y+=lines.length*17+16;x.fillStyle='#E4E0F3';x.fillRect(x0,y,x1-x0,1);y+=1});
+ y+=14;
+ if(t.nominal){x.fillStyle='#2B1C78';x.font='800 30px '+FS;x.fillText(rp(t.nominal),x0,y+28);y+=38;
+  x.fillStyle='#5E5A78';x.font='italic 400 11.5px '+FS;wrapLines(x,'Terbilang: '+terbilang(t.nominal).replace(/^./,m=>m.toUpperCase()),x1-x0).forEach(l=>{x.fillText(l,x0,y+12);y+=16})}
+ if(t.beras){y+=6;x.fillStyle='#2B1C78';x.font='800 30px '+FS;x.fillText(nf(t.beras)+' kg beras',x0,y+28);y+=38}
+ y+=22;x.textAlign='center';x.direction='rtl';x.fillStyle='#1A1538';x.font='400 22px Amiri,"Traditional Arabic",serif';
+ wrapLines(x,DOA,x1-x0-4).forEach(l=>{x.fillText(l,(x0+x1)/2,y+24);y+=38});
+ x.direction='ltr';x.fillStyle='#5E5A78';x.font='400 11px '+FS;y+=2;wrapLines(x,DOAT,x1-x0-40).forEach(l=>{x.fillText(l,(x0+x1)/2,y+12);y+=16});
+ y+=30;const sx=x1-95;x.fillStyle='#1A1538';x.font='400 12.5px '+FS;x.fillText('Amil penerima',sx,y);
+ y+=66;x.font='700 13px '+FS;x.fillText(t.amil||'(…………………)',sx,y);
+ const bot=y+26;x.textAlign='center';x.fillStyle='#8B87A6';x.font='400 9px '+FS;x.fillText('Dibuat dengan Mizan Amil · Media Pembelajaran Hukum Zakat · HES FAI UMS',W/2,Math.max(bot+22,H-M-6));
+ x.setLineDash([6,4]);x.lineWidth=1.5;x.strokeStyle='#2B1C78';roundRect(x,M,M,W-2*M,bot-M+10,14);x.stroke();
+ const jpg=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.92));if(!jpg)throw new Error('gambar tidak bisa dibuat');
+ return makePdf(new Uint8Array(await jpg.arrayBuffer()),cv.width,cv.height,419.53,595.28)}
+function makePdf(jpg,wPx,hPx,wPt,hPt){const enc=new TextEncoder(),parts=[],off=[];let n=0;
+ const add=s=>{const b=typeof s==='string'?enc.encode(s):s;parts.push(b);n+=b.length};
+ const obj=(i,body)=>{off[i]=n;add(i+' 0 obj\n'+body+'\nendobj\n')};
+ add('%PDF-1.4\n');
+ obj(1,'<< /Type /Catalog /Pages 2 0 R >>');
+ obj(2,'<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+ obj(3,'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+wPt+' '+hPt+'] /Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>');
+ const cs='q '+wPt+' 0 0 '+hPt+' 0 0 cm /Im0 Do Q';
+ obj(4,'<< /Length '+cs.length+' >>\nstream\n'+cs+'\nendstream');
+ off[5]=n;add('5 0 obj\n<< /Type /XObject /Subtype /Image /Width '+wPx+' /Height '+hPx+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+jpg.length+' >>\nstream\n');add(jpg);add('\nendstream\nendobj\n');
+ obj(6,'<< /Producer (Mizan Amil) >>');
+ const xr=n;let xt='xref\n0 7\n0000000000 65535 f \n';for(let i=1;i<=6;i++)xt+=String(off[i]).padStart(10,'0')+' 00000 n \n';
+ add(xt+'trailer\n<< /Size 7 /Root 1 0 R /Info 6 0 R >>\nstartxref\n'+xr+'\n%%EOF\n');
+ return new Blob(parts,{type:'application/pdf'})}
 function closeM(){$('#modal').hidden=true}
 $('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeM()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#modal').hidden)closeM()});
 function showText(title,t){$('#mbox').innerHTML=`<h3>${esc(title)}</h3><pre>${esc(t)}</pre><div class="tools"><button class="ghost" id="k-x">Tutup</button></div>`;$('#modal').hidden=false;$('#k-x').onclick=closeM}
-let dl;async function saveFile(name,data,mime){try{if(dl===undefined)dl=window.claude&&claude.use?await claude.use('downloads'):null}catch(e){dl=null}
- if(!dl&&!window.claude){const blob=new Blob([data],{type:mime});
-  if(isNative()){try{const f=new File([blob],name,{type:mime});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return}}catch(e){}showText('Salin isi berkas '+name,data);return}
+let dl,saveErr='';
+function blobB64(b){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]||'');r.onerror=()=>rej(r.error);r.readAsDataURL(b)})}
+/* Android (APK): tulis ke cache aplikasi lalu buka lembar bagikan agar bisa disimpan ke Berkas/Drive atau dikirim lewat WhatsApp. */
+async function nativeSave(name,blob){const P=(window.Capacitor&&Capacitor.Plugins)||{};if(!P.Filesystem||!P.Share){saveErr='modul simpan/bagikan belum terpasang';return false}
+ try{const w=await P.Filesystem.writeFile({path:name,data:await blobB64(blob),directory:'CACHE'});await P.Share.share({title:name,dialogTitle:'Simpan atau bagikan '+name,files:[w.uri]});return true}
+ catch(e){const m=(e&&e.message)||String(e);if(/cancel/i.test(m))return true;saveErr=m;return false}}
+async function saveFile(name,data,mime){try{if(dl===undefined)dl=window.claude&&claude.use?await claude.use('downloads'):null}catch(e){dl=null}
+ const isTxt=!(data instanceof Blob),blob=isTxt?new Blob([data],{type:mime}):data;saveErr='';
+ const gagal=()=>{if(isTxt)showText('Unduhan tidak tersedia di tampilan ini — salin isinya: '+name,data);else toast('Berkas tidak bisa disimpan di perangkat ini'+(saveErr?' ('+saveErr+')':'')+'.',7000)};
+ if(!dl&&!window.claude){
+  if(isNative()){if(await nativeSave(name,blob))return;
+   try{const f=new File([blob],name,{type:mime});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return}}catch(e){}
+   gagal();return}
   try{const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);toast('Berkas '+name+' diunduh');return}catch(e){}}
- if(dl){try{await dl.save({filename:name,data});toast('Berkas '+name+' disiapkan');return}catch(e){try{await dl.save({filename:name,data:new Blob([data],{type:mime})});toast('Berkas '+name+' disiapkan');return}catch(e2){}}}
- showText('Unduhan tidak tersedia di tampilan ini — salin isinya: '+name,data)}
+ if(dl){try{await dl.save({filename:name,data});toast('Berkas '+name+' disiapkan');return}catch(e){try{await dl.save({filename:name,data:blob});toast('Berkas '+name+' disiapkan');return}catch(e2){}}}
+ gagal()}
 
 /* ---------- Penyaluran ---------- */
 let editD=null;
@@ -706,20 +765,30 @@ function syncMsg(m,bad){const el=$('#h-sync-msg');el.textContent=m;el.style.colo
 const ERRTXT={server_not_connected:'konektor belum ditambahkan',needs_reauth:'konektor perlu dihubungkan ulang',not_in_manifest:'akses konektor untuk halaman ini belum diizinkan',approval_required:'perlu persetujuan Anda',blocked_by_policy:'diblokir kebijakan organisasi',selection_required:'pilih salah satu konektor terlebih dahulu'};
 const isNative=()=>!!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform());
 const htmlText=h=>String(h).replace(/<script[\s\S]*?<\/script>/gi,' ').replace(/<style[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/[ \t]+/g,' ');
-async function nativeAntam(){const H=Capacitor.Plugins&&Capacitor.Plugins.CapacitorHttp;if(!H)throw new Error('modul HTTP tidak tersedia');
- for(const url of['https://www.logammulia.com/id','https://www.logammulia.com/']){try{const r=await H.get({url,headers:{'User-Agent':'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36','Accept':'text/html','Accept-Language':'id-ID,id;q=0.9'}});const p=parseAntam(htmlText(typeof r.data==='string'?r.data:JSON.stringify(r.data)));if(p.emas)return p}catch(e){}}return null}
+async function nativeAntam(){const H=Capacitor.Plugins&&Capacitor.Plugins.CapacitorHttp;if(!H)throw new Error('modul HTTP tidak tersedia');let why='';
+ for(const url of['https://www.logammulia.com/id','https://www.logammulia.com/']){try{const r=await H.get({url,headers:{'User-Agent':'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36','Accept':'text/html','Accept-Language':'id-ID,id;q=0.9'}});const p=parseAntam(htmlText(typeof r.data==='string'?r.data:JSON.stringify(r.data)));if(p.emas)return p;why='HTTP '+r.status+', harga baru muncul lewat JavaScript sehingga tidak terbaca'}catch(e){why=(e&&e.message)||'tidak terhubung'}}
+ throw new Error(why||'harga tidak terbaca')}
+/* Harga harian: GitHub Actions membuka situs Antam dengan Chrome sungguhan dan menerbitkan harga.json di situs Mizan Amil. */
+const HARGA_URL='https://elhakim45.github.io/mizan-amil/harga.json';
+async function fromHargaJson(){let why='';
+ for(const u of(isNative()?[HARGA_URL]:['harga.json',HARGA_URL])){try{const r=await fetch(u+'?t='+Date.now(),{cache:'no-store'});
+  if(!r.ok){why='HTTP '+r.status+(r.status===404?' (data harian belum terbit)':'');continue}
+  const j=await r.json(),emas=+j.emas;if(!(emas>0)){why='isi berkas tidak valid';continue}
+  return{emas,perak:+j.perak>0?+j.perak:null,upd:j.upd||'',tgl:/^\d{4}-\d{2}-\d{2}$/.test(j.tgl||'')?j.tgl:null}}catch(e){why=(e&&e.message)||'tidak terhubung'}}
+ throw new Error(why||'tidak tersedia')}
 $('#h-sync-btn').onclick=async()=>{const box=$('#h-sync');const fails=[];let got=null,via='';
- if(isNative()){box.classList.add('busy');syncMsg('Menghubungi Logam Mulia Antam…');try{got=await nativeAntam();via='aplikasi, langsung dari situs Antam'}catch(e){}box.classList.remove('busy');
-  if(!got){syncMsg('Gagal membaca situs Logam Mulia Antam. Periksa koneksi internet, atau isi harga secara manual.',true);return}}
- let mcp=null;if(!got){try{mcp=window.claude&&claude.use?await claude.use('mcp'):null}catch(e){}
- if(!mcp){syncMsg('Sinkronisasi otomatis tersedia di aplikasi Android Mizan Amil atau versi claude.ai dengan konektor web. Di versi web ini, buka tautan sumber resmi di bawah lalu isi formulir manual.',true);return}
- box.classList.add('busy');syncMsg('Menghubungi Logam Mulia Antam…');}
- if(!got)for(const s of SYNC){if(got)break;for(const inp of s.inputs){try{const r=await mcp.callTool(s.server,s.tool,inp,{cache:false});const p=parseAntam(textOf(r));if(p.emas){got=p;via=s.server}else fails.push(s.server+': tabel harga tidak terbaca');break}catch(e){const c=e?.code;if(c==='tool_error'||c==='bad_request'){fails.push(s.server+': '+(e.message||c).slice(0,80));continue}fails.push(s.server+': '+(ERRTXT[c]||c||'gagal'));break}}}
+ box.classList.add('busy');syncMsg('Mengambil harga terbaru…');
+ try{got=await fromHargaJson();via='data harian Mizan Amil (sumber: Logam Mulia Antam)'}catch(e){fails.push('data harian: '+e.message)}
+ if(!got&&isNative()){try{got=await nativeAntam();via='aplikasi, langsung dari situs Antam'}catch(e){fails.push('situs Antam: '+e.message)}}
+ let mcp=null;if(!got){try{mcp=window.claude&&claude.use?await claude.use('mcp'):null}catch(e){}}
+ if(!got&&mcp){syncMsg('Menghubungi Logam Mulia Antam…');
+  for(const s of SYNC){if(got)break;for(const inp of s.inputs){try{const r=await mcp.callTool(s.server,s.tool,inp,{cache:false});const p=parseAntam(textOf(r));if(p.emas){got=p;via=s.server}else fails.push(s.server+': tabel harga tidak terbaca');break}catch(e){const c=e?.code;if(c==='tool_error'||c==='bad_request'){fails.push(s.server+': '+(e.message||c).slice(0,80));continue}fails.push(s.server+': '+(ERRTXT[c]||c||'gagal'));break}}}}
  box.classList.remove('busy');
- if(!got){syncMsg('Gagal sinkron — '+fails.join('; ')+'. Tambahkan konektor Firecrawl atau Parallel Search di claude.ai, atau isi manual.',true);return}
+ if(!got){syncMsg('Gagal sinkron — '+fails.join('; ')+'. Isi harga secara manual lewat formulir di bawah.',true);return}
  if(got.emas<500000||got.emas>20000000){syncMsg('Angka emas yang terbaca ('+rp(got.emas)+') tidak wajar, tidak diterapkan.',true);return}
+ if(got.tgl&&S.cfg.emasTgl&&got.tgl<S.cfg.emasTgl){syncMsg('Data otomatis ('+tgl(D(got.tgl))+') lebih lama dari harga yang tersimpan ('+tgl(D(S.cfg.emasTgl))+'), jadi tidak diterapkan.',true);return}
  const prevE=S.cfg.emas;if(prevE&&Math.abs(got.emas-prevE)/prevE>.3&&!(await askOk(`Harga emas berubah dari ${rp(prevE)} menjadi ${rp(got.emas)} (lebih dari 30%). Terapkan?`))){syncMsg('Dibatalkan.');return}
- const t=today(),prev=S.cfg,es='Logam Mulia Antam — harga beli emas 1 g (sinkron)',ps='Logam Mulia Antam — harga beli perak per g (sinkron)',pk=got.perak&&got.perak>1000&&got.perak<1000000?got.perak:null;
+ const prev=S.cfg,t=got.tgl&&got.tgl<=today()?got.tgl:today(),es='Logam Mulia Antam — harga beli emas 1 g (sinkron)',ps='Logam Mulia Antam — harga beli perak per g (sinkron)',pk=got.perak&&got.perak>1000&&got.perak<1000000?got.perak:null;
  S.cfg={...prev,emas:got.emas,emasTgl:t,emasSrc:es,...(pk?{perak:pk,perakTgl:t,perakSrc:ps}:{}),riwayat:[{tgl:t,emas:got.emas,perak:pk||prev.perak,es,ps:pk?ps:(prev.perakSrc+' (tidak berubah)'),at:Date.now()},...(prev.riwayat||[])].slice(0,60)};
  if(await putCfg()){fillHarga();renderHarga();renderCalc();syncMsg(`Tersinkron ${new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})} lewat ${via}${got.upd?' (data Antam '+got.upd+')':''}: emas ${rp(got.emas)}/g${pk?', perak '+rp(pk)+'/g':' (harga perak tidak terbaca, tetap '+rp(prev.perak)+'/g)'}.`)}else{S.cfg=prev;syncMsg('Harga terbaca tetapi gagal disimpan.',true)}};
 function askOk(msg){return new Promise(res=>{$('#mbox').innerHTML=`<p>${esc(msg)}</p><div class="tools"><button class="pri" id="ao-y">Terapkan</button><button class="ghost" id="ao-n">Batal</button></div>`;$('#modal').hidden=false;$('#ao-y').onclick=()=>{closeM();res(true)};$('#ao-n').onclick=()=>{closeM();res(false)}})}

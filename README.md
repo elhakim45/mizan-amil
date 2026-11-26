@@ -19,8 +19,8 @@ Acuan: Fatwa MUI dan Ijtima Ulama Komisi Fatwa, putusan Munas Tarjih Muhammadiya
 ## Fitur
 
 - Kalkulator 11 jenis zakat: penghasilan, simpanan, emas & perak (beberapa kadar karat), perdagangan, perusahaan, saham, pertanian, peternakan, rikaz, fitrah, fidyah
-- Harga emas & perak dengan sinkronisasi dari Logam Mulia Antam (otomatis di aplikasi Android) dan pengingat sebelum menyimpan
-- Penerimaan dengan kwitansi berdoa, penyaluran 8 asnaf dengan batas hak amil, laporan, ekspor CSV, cadangan JSON
+- Harga emas & perak dengan sinkronisasi harian dari Logam Mulia Antam (lihat bagian *Harga emas otomatis*) dan pengingat sebelum menyimpan
+- Penerimaan dengan kwitansi PDF berdoa (di Android dibagikan lewat menu Bagikan: simpan ke Berkas, kirim ke WhatsApp, dsb.), penyaluran 8 asnaf dengan batas hak amil, laporan, ekspor CSV, cadangan JSON
 - Bisa dipakai tanpa internet setelah dibuka sekali; font dibundel di dalam aplikasi sehingga tampilan dan teks Arab pada kwitansi sama saat offline
 
 ## Cara memakai
@@ -38,7 +38,7 @@ Aplikasi ini dirancang sebagai laboratorium: mahasiswa memerankan amil di kantor
 
 **Sebelum kelas**
 
-1. Buka menu **Harga emas & perak** dan perbarui harga hari itu. Di aplikasi Android tombol *Sinkronkan harga sekarang* membaca situs Logam Mulia Antam; di versi web, salin angkanya dari tautan sumber ke formulir manual. Nisab emas, simpanan, perdagangan, perusahaan, dan saham dihitung dari harga ini, dan aplikasi memberi peringatan bila harga belum diperbarui hari itu.
+1. Buka menu **Harga emas & perak** dan perbarui harga hari itu. Tombol *Sinkronkan harga sekarang* mengambil harga terbaru yang disiapkan otomatis tiap pagi; bila gagal, isi manual dari tautan sumber. Nisab emas, simpanan, perdagangan, perusahaan, dan saham dihitung dari harga ini, dan aplikasi memberi peringatan bila harga belum diperbarui hari itu.
 2. Buka **Pengaturan**: isi nama lembaga dan alamat (tercetak di kwitansi), lalu periksa nisab penghasilan (SK BAZNAS), takaran fitrah, fidyah, serta batas hak amil.
 
 **Kegiatan di kelas**
@@ -58,12 +58,16 @@ Ringkasan ketentuan di aplikasi adalah alat bantu hitung dan simulasi. Untuk kas
 www/                  aplikasi web (index.html, manifest, service worker, ikon, fonts/)
 assets/               logo sumber untuk ikon & splash Android
 docs/gambar/          tangkapan layar untuk README
-scripts/              sign-apk.sh (tanda tangan APK), buat-keystore.sh (membuat kunci)
+scripts/              sign-apk.sh, buat-keystore.sh / .ps1 (membuat kunci), ambil-harga.mjs (harga Antam)
 capacitor.config.json konfigurasi aplikasi Android (Capacitor)
 .github/workflows/    pages.yml (web) dan android.yml (APK)
 ```
 
 Setiap *push* ke `main` otomatis menerbitkan ulang web app dan membuat rilis APK baru.
+
+## Harga emas otomatis
+
+Situs Antam menampilkan harga lewat JavaScript, sehingga tidak bisa dibaca langsung oleh aplikasi. Karena itu workflow `pages.yml` membuka situs itu dengan peramban tanpa tampilan setiap pagi (sekitar 09.40 dan 12.00 WIB, juga setiap push), menyimpan hasilnya sebagai `harga.json`, lalu menerbitkannya bersama web app. Aplikasi mengambil berkas itu saat tombol sinkronisasi ditekan. Bila pengambilan gagal, harga terakhir yang pernah terbit tetap dipakai. Cara ini bergantung pada tata letak situs Antam; bila situs berubah, lihat log langkah *Ambil harga terbaru* di tab Actions.
 
 ## Menerbitkan web app (sekali saja)
 
@@ -73,7 +77,7 @@ Di GitHub buka **Settings → Pages → Build and deployment → Source: GitHub 
 
 Tanpa pengaturan tambahan, workflow menghasilkan APK **debug**. Untuk APK **rilis** yang bertanda tangan:
 
-1. Di komputer yang memiliki JDK, jalankan `bash scripts/buat-keystore.sh`. Skrip membuat `mizan-amil.jks` dan `mizan-amil.jks.base64`.
+1. Buat kunci (panduan lengkap beserta alternatif tanpa JDK: [docs/panduan-kunci-apk.md](docs/panduan-kunci-apk.md)). Singkatnya, di komputer ber-JDK jalankan `bash scripts/buat-keystore.sh` (Windows: `powershell -ExecutionPolicy Bypass -File scripts\buat-keystore.ps1`). Skrip membuat `mizan-amil.jks` dan `mizan-amil.jks.base64`.
 2. Di GitHub buka **Settings → Secrets and variables → Actions** dan tambahkan:
 
    | Secret | Isi |

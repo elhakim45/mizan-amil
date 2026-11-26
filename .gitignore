@@ -6,3 +6,4 @@ ios/
 *.jks
 *.keystore
 *.base64
+www/harga.json

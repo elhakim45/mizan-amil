@@ -1,5 +1,5 @@
 // Service worker: aplikasi tetap terbuka saat offline.
-const CACHE = 'mizan-amil-v2';
+const CACHE = 'mizan-amil-v3';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './logo-hes.png', './favicon.png',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png',
   './fonts/plus-jakarta-sans-latin-400-normal.woff2', './fonts/plus-jakarta-sans-latin-500-normal.woff2',
@@ -21,6 +21,8 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
+  // Harga terbaru selalu dari jaringan, tidak pernah dari cache.
+  if (new URL(req.url).pathname.endsWith('/harga.json')) return;
   if (req.mode === 'navigate') {
     e.respondWith(fetch(req).then(r => {
       const copy = r.clone(); caches.open(CACHE).then(c => c.put('./index.html', copy)); return r;
