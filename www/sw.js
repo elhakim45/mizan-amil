@@ -1,7 +1,10 @@
 // Service worker: aplikasi tetap terbuka saat offline.
-const CACHE = 'mizan-amil-v1';
+const CACHE = 'mizan-amil-v2';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './logo-hes.png', './favicon.png',
-  './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png'];
+  './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png',
+  './fonts/plus-jakarta-sans-latin-400-normal.woff2', './fonts/plus-jakarta-sans-latin-500-normal.woff2',
+  './fonts/plus-jakarta-sans-latin-600-normal.woff2', './fonts/plus-jakarta-sans-latin-700-normal.woff2',
+  './fonts/plus-jakarta-sans-latin-800-normal.woff2', './fonts/amiri-arabic-400-normal.woff2'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
@@ -25,7 +28,7 @@ self.addEventListener('fetch', e => {
     return;
   }
   e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(r => {
-    if (r.ok && (new URL(req.url).origin === location.origin || /fonts\.(googleapis|gstatic)\.com/.test(req.url))) {
+    if (r.ok && new URL(req.url).origin === location.origin) {
       const copy = r.clone(); caches.open(CACHE).then(c => c.put(req, copy));
     }
     return r;
