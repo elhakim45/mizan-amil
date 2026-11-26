@@ -1,0 +1,39 @@
+name: Uji tanda tangan (sementara)
+on:
+  push:
+    branches: [uji-ttd]
+jobs:
+  uji:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - name: Terima lisensi Android SDK
+        run: |
+          SDKM="$(command -v sdkmanager || echo "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager")"
+          yes | "$SDKM" --licenses > /dev/null || true
+      - run: npm install --no-audit --no-fund
+      - run: npx cap add android
+      - run: npx cap sync android
+      - name: Atur nomor versi
+        run: |
+          sed -i -E "s/versionCode [0-9]+/versionCode 77/; s/versionName \"[^\"]*\"/versionName \"1.0.77\"/" android/app/build.gradle
+          grep -E "versionCode|versionName" android/app/build.gradle
+          grep -q "versionCode 77" android/app/build.gradle
+      - name: Build rilis tanpa tanda tangan
+        run: |
+          chmod +x android/gradlew scripts/sign-apk.sh
+          (cd android && ./gradlew assembleRelease --no-daemon)
+          ls -l android/app/build/outputs/apk/release/
+      - name: Keystore sementara lalu tanda tangani
+        run: |
+          keytool -genkeypair -keystore "$RUNNER_TEMP/uji.jks" -alias ujikey -keyalg RSA -keysize 2048 -validity 30 \
+            -storepass ujipass123 -keypass ujipass123 -dname "CN=Uji"
+          KEYSTORE_FILE="$RUNNER_TEMP/uji.jks" KEYSTORE_PASSWORD=ujipass123 KEY_ALIAS=ujikey \
+            scripts/sign-apk.sh android/app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/hasil.apk"
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          "$BT/aapt2" dump badging "$RUNNER_TEMP/hasil.apk" | head -2
+          ls -l "$RUNNER_TEMP/hasil.apk"
