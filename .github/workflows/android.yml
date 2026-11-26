@@ -24,7 +24,12 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - uses: android-actions/setup-android@v3
+      # Android SDK sudah terpasang di runner ubuntu-latest; cukup terima lisensinya
+      # agar Gradle boleh mengunduh komponen yang kurang.
+      - name: Terima lisensi Android SDK
+        run: |
+          SDKM="$(command -v sdkmanager || echo "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager")"
+          yes | "$SDKM" --licenses > /dev/null || true
 
       - name: Pasang Capacitor
         run: npm install --no-audit --no-fund
